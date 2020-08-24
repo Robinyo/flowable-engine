@@ -18,8 +18,13 @@ import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.flowable.cmmn.engine.CmmnEngineConfiguration;
+import org.flowable.cmmn.engine.impl.repository.CaseDefinitionUtil;
 import org.flowable.cmmn.engine.impl.util.CommandContextUtil;
+import org.flowable.cmmn.model.Case;
+import org.flowable.cmmn.model.HumanTask;
+import org.flowable.cmmn.model.PlanItemDefinition;
 import org.flowable.common.engine.api.FlowableException;
+import org.flowable.common.engine.api.delegate.Expression;
 import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.common.engine.api.variable.VariableContainer;
 import org.flowable.common.engine.impl.el.ExpressionManager;
@@ -131,12 +136,31 @@ public class TaskHelper {
     public static void changeTaskAssignee(TaskEntity taskEntity, String assignee) {
         if ((taskEntity.getAssignee() != null && !taskEntity.getAssignee().equals(assignee))
                 || (taskEntity.getAssignee() == null && assignee != null)) {
-            
-            CommandContextUtil.getTaskService().changeTaskAssignee(taskEntity, assignee);
-            CommandContextUtil.getCmmnEngineConfiguration().getListenerNotificationHelper().executeTaskListeners(taskEntity, TaskListener.EVENTNAME_ASSIGNMENT);
+
+            CommandContext commandContext = CommandContextUtil.getCommandContext();
+            CommandContextUtil.getTaskService(commandContext).changeTaskAssignee(taskEntity, assignee);
+            CommandContextUtil.getCmmnEngineConfiguration(commandContext).getListenerNotificationHelper().executeTaskListeners(taskEntity, TaskListener.EVENTNAME_ASSIGNMENT);
 
             if (taskEntity.getId() != null) {
                 addAssigneeIdentityLinks(taskEntity);
+            }
+
+            if (taskEntity.getScopeDefinitionId() != null && ScopeTypes.CMMN.equals(taskEntity.getScopeType())) {
+                Case theCase = CaseDefinitionUtil.getCase(taskEntity.getScopeDefinitionId());
+                PlanItemDefinition planItemDefinition = theCase.getPlanModel()
+                    .findPlanItemDefinitionInStageOrDownwards(taskEntity.getTaskDefinitionKey());
+                if (planItemDefinition instanceof HumanTask) {
+                    HumanTask humanTask = (HumanTask) planItemDefinition;
+
+                    String assigneeVariableName = humanTask.getAssigneeVariableName();
+                    if (StringUtils.isNotEmpty(assigneeVariableName)) {
+                        ExpressionManager expressionManager = CommandContextUtil.getCmmnEngineConfiguration(commandContext).getExpressionManager();
+                        Expression expression = expressionManager.createExpression(assigneeVariableName);
+
+                        // TODO: needs to be configurable local/instance and transient/non-transient
+                        taskEntity.setVariableLocal(expression.getValue(taskEntity).toString(), assignee);
+                    }
+                }
             }
         }
     }
@@ -145,10 +169,29 @@ public class TaskHelper {
         if ((taskEntity.getOwner() != null && !taskEntity.getOwner().equals(owner))
                 || (taskEntity.getOwner() == null && owner != null)) {
 
-            CommandContextUtil.getTaskService().changeTaskOwner(taskEntity, owner);
+            CommandContext commandContext = CommandContextUtil.getCommandContext();
+            CommandContextUtil.getTaskService(commandContext).changeTaskOwner(taskEntity, owner);
 
             if (taskEntity.getId() != null) {
                 addOwnerIdentityLink(taskEntity);
+            }
+
+            if (taskEntity.getScopeDefinitionId() != null && ScopeTypes.CMMN.equals(taskEntity.getScopeType())) {
+                Case theCase = CaseDefinitionUtil.getCase(taskEntity.getScopeDefinitionId());
+                PlanItemDefinition planItemDefinition = theCase.getPlanModel()
+                    .findPlanItemDefinitionInStageOrDownwards(taskEntity.getTaskDefinitionKey());
+                if (planItemDefinition instanceof HumanTask) {
+                    HumanTask humanTask = (HumanTask) planItemDefinition;
+
+                    String ownerVariableName = humanTask.getOwnerVariableName();
+                    if (StringUtils.isNotEmpty(ownerVariableName)) {
+                        ExpressionManager expressionManager = CommandContextUtil.getCmmnEngineConfiguration(commandContext).getExpressionManager();
+                        Expression expression = expressionManager.createExpression(ownerVariableName);
+
+                        // TODO: needs to be configurable local/instance and transient/non-transient
+                        taskEntity.setVariableLocal(expression.getValue(taskEntity).toString(), owner);
+                    }
+                }
             }
         }
     }

@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
+import org.flowable.bpmn.model.FlowElement;
+import org.flowable.bpmn.model.UserTask;
 import org.flowable.common.engine.api.FlowableException;
+import org.flowable.common.engine.api.delegate.Expression;
 import org.flowable.common.engine.api.delegate.event.FlowableEngineEventType;
 import org.flowable.common.engine.api.delegate.event.FlowableEventDispatcher;
 import org.flowable.common.engine.api.scope.ScopeTypes;
@@ -152,11 +155,29 @@ public class TaskHelper {
         if ((taskEntity.getAssignee() != null && !taskEntity.getAssignee().equals(assignee))
                 || (taskEntity.getAssignee() == null && assignee != null)) {
 
-            CommandContextUtil.getTaskService().changeTaskAssignee(taskEntity, assignee);
+            CommandContext commandContext = CommandContextUtil.getCommandContext();
+            CommandContextUtil.getTaskService(commandContext).changeTaskAssignee(taskEntity, assignee);
             fireAssignmentEvents(taskEntity);
 
             if (taskEntity.getId() != null) {
                 addAssigneeIdentityLinks(taskEntity);
+            }
+
+            if (taskEntity.getProcessDefinitionId() != null) {
+                FlowElement flowElement = ProcessDefinitionUtil.getProcess(taskEntity.getProcessDefinitionId())
+                    .getFlowElement(taskEntity.getTaskDefinitionKey(), true);
+                if (flowElement instanceof UserTask) {
+                    UserTask userTask = (UserTask) flowElement;
+
+                    String assigneeVariableName = userTask.getAssigneeVariableName();
+                    if (StringUtils.isNotEmpty(assigneeVariableName)) {
+                        ExpressionManager expressionManager = CommandContextUtil.getProcessEngineConfiguration(commandContext).getExpressionManager();
+                        Expression expression = expressionManager.createExpression(assigneeVariableName);
+
+                        // TODO: needs to be configurable local/instance and transient/non-transient
+                        taskEntity.setVariableLocal(expression.getValue(taskEntity).toString(), assignee);
+                    }
+                }
             }
         }
     }
@@ -165,9 +186,27 @@ public class TaskHelper {
         if ((taskEntity.getOwner() != null && !taskEntity.getOwner().equals(owner))
                 || (taskEntity.getOwner() == null && owner != null)) {
 
-            CommandContextUtil.getTaskService().changeTaskOwner(taskEntity, owner);
+            CommandContext commandContext = CommandContextUtil.getCommandContext();
+            CommandContextUtil.getTaskService(commandContext).changeTaskOwner(taskEntity, owner);
             if (taskEntity.getId() != null) {
                 addOwnerIdentityLink(taskEntity, taskEntity.getOwner());
+            }
+
+            if (taskEntity.getProcessDefinitionId() != null) {
+                FlowElement flowElement = ProcessDefinitionUtil.getProcess(taskEntity.getProcessDefinitionId())
+                    .getFlowElement(taskEntity.getTaskDefinitionKey(), true);
+                if (flowElement instanceof UserTask) {
+                    UserTask userTask = (UserTask) flowElement;
+
+                    String ownerVariableName = userTask.getOwnerVariableName();
+                    if (StringUtils.isNotEmpty(ownerVariableName)) {
+                        ExpressionManager expressionManager = CommandContextUtil.getProcessEngineConfiguration(commandContext).getExpressionManager();
+                        Expression expression = expressionManager.createExpression(ownerVariableName);
+
+                        // TODO: needs to be configurable local/instance and transient/non-transient
+                        taskEntity.setVariableLocal(expression.getValue(taskEntity).toString(), owner);
+                    }
+                }
             }
         }
     }
