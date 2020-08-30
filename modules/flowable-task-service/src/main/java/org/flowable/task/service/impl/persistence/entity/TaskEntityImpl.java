@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.common.engine.impl.context.Context;
@@ -40,6 +39,7 @@ import org.flowable.task.service.impl.persistence.CountingTaskEntity;
 import org.flowable.task.service.impl.util.CommandContextUtil;
 import org.flowable.task.service.impl.util.CountingTaskUtil;
 import org.flowable.variable.service.impl.aggregation.VariableAggregation;
+import org.flowable.variable.service.impl.persistence.entity.VariableAggregationScopeInfo;
 import org.flowable.variable.service.impl.persistence.entity.VariableInitializingList;
 import org.flowable.variable.service.impl.persistence.entity.VariableInstanceEntity;
 import org.flowable.variable.service.impl.persistence.entity.VariableScopeImpl;
@@ -227,7 +227,7 @@ public class TaskEntityImpl extends AbstractTaskServiceVariableScopeEntity imple
     }
 
     @Override
-    public Pair<String, String> getVariableAggregationScopeInfo() {
+    public VariableAggregationScopeInfo getVariableAggregationScopeInfo() {
         return getParentVariableScope().getVariableAggregationScopeInfo();
     }
 
