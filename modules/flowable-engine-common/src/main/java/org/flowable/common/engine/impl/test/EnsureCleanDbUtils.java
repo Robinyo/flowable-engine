@@ -17,10 +17,12 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 
+import org.flowable.common.engine.api.management.TablePage;
 import org.flowable.common.engine.impl.AbstractEngineConfiguration;
 import org.flowable.common.engine.impl.interceptor.Command;
 import org.flowable.common.engine.impl.interceptor.CommandConfig;
 import org.flowable.common.engine.impl.interceptor.CommandExecutor;
+import org.flowable.common.engine.impl.persistence.entity.TablePageQueryImpl;
 import org.slf4j.Logger;
 
 /**
@@ -51,7 +53,16 @@ public class EnsureCleanDbUtils {
             if (!tableNamesExcludedFromDbCleanCheck.contains(tableNameWithoutPrefix) && !tableNameWithoutPrefix.contains(DB_CHANGELOG_TABLE)) {
                 Long count = tableCounts.get(tableName);
                 if (count != 0L) {
-                    outputMessage.append("  ").append(tableName).append(": ").append(count).append(" record(s) ");
+                    outputMessage.append("  ").append(tableName).append(": ").append(count).append(" record(s) : \n");
+
+                    TablePage tableData = engineConfiguration.getCommandExecutor()
+                        .execute(commandContext -> commandContext.getCurrentEngineConfiguration().getTableDataManager()
+                            .getTablePage(new TablePageQueryImpl().tableName(tableName), 0, count.intValue()));
+                    if (tableData != null && tableData.getRows() != null) {
+                        for (Map<String, Object> row : tableData.getRows()) {
+                            outputMessage.append("    ").append(row).append("\n");
+                        }
+                    }
                 }
             }
         }
