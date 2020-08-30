@@ -27,6 +27,7 @@ import org.flowable.variable.api.types.VariableTypes;
 import org.flowable.variable.service.VariableService;
 import org.flowable.variable.service.VariableServiceConfiguration;
 import org.flowable.variable.service.impl.aggregation.VariableAggregation;
+import org.flowable.variable.service.impl.aggregation.VariableAggregationInfo;
 import org.flowable.variable.service.impl.persistence.entity.VariableInstanceEntity;
 import org.flowable.variable.service.impl.types.BooleanType;
 import org.flowable.variable.service.impl.types.DoubleType;
@@ -48,10 +49,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 public class VariableAggregationUtil {
 
-    public static void copyCreatedVariableForAggregation(List<VariableAggregation> variableAggregations,
-            VariableInstance variableInstance, String scopeId, String subScopeId) {
+    public static void copyCreatedVariableForAggregation(VariableAggregationInfo variableAggregationInfo, VariableInstance variableInstance) {
 
-        Optional<VariableAggregation> matchingVariableAggregation = variableAggregations
+        Optional<VariableAggregation> matchingVariableAggregation = variableAggregationInfo.getVariableAggregations()
             .stream()
             .filter(variableAggregation -> variableInstance.getName().equals(variableAggregation.getSource()))
             .findFirst();
@@ -69,10 +69,9 @@ public class VariableAggregationUtil {
             // because the variables need to be deleted when the instance would be deleted without doing the aggregation.
             VariableInstanceEntity variableInstanceCopy = variableService
                 .createVariableInstance(variableInstance.getName(), jsonVariableType);
+            variableInstanceCopy.setScopeId(variableAggregationInfo.getInstanceId());
+            variableInstanceCopy.setSubScopeId(variableAggregationInfo.getBeforeAggregationScopeId());
             variableInstanceCopy.setScopeType(ScopeTypes.VARIABLE_AGGREGATION);
-
-            variableInstanceCopy.setScopeId(scopeId);
-            variableInstanceCopy.setSubScopeId(subScopeId);
 
             // The variable value is stored as an ObjectNode instead of the actual value.
             // The reason for this is:
@@ -134,8 +133,7 @@ public class VariableAggregationUtil {
 
     }
 
-    public static void aggregateVariablesForOneInstance(String scopeId, String subScopeId,
-            List<VariableAggregation> variableAggregations, List<VariableInstanceEntity> variableInstances) {
+    public static void aggregateVariablesForOneInstance(VariableAggregationInfo variableAggregationInfo, List<VariableInstanceEntity> variableInstances) {
 
         VariableServiceConfiguration variableServiceConfiguration = CommandContextUtil.getVariableServiceConfiguration();
         ObjectMapper objectMapper = variableServiceConfiguration.getObjectMapper();
@@ -147,7 +145,7 @@ public class VariableAggregationUtil {
 
             ObjectNode variableValue = (ObjectNode) variableInstance.getValue();
 
-            List<VariableAggregation> matchingVariableAggregations = variableAggregations.stream()
+            List<VariableAggregation> matchingVariableAggregations = variableAggregationInfo.getVariableAggregations().stream()
                 .filter(variableAggregation -> variableAggregation.getSource().equals(variableInstance.getName()))
                 .collect(Collectors.toList());
 
@@ -179,8 +177,8 @@ public class VariableAggregationUtil {
             VariableInstanceEntity aggregatedObjectNodeVariable = variableService
                 .createVariableInstance(aggregatedVariableName, jsonVariableType);
             aggregatedObjectNodeVariable.setScopeType(ScopeTypes.VARIABLE_AGGREGATION);
-            aggregatedObjectNodeVariable.setScopeId(scopeId);
-            aggregatedObjectNodeVariable.setSubScopeId(subScopeId);
+            aggregatedObjectNodeVariable.setScopeId(variableAggregationInfo.getInstanceId());
+            aggregatedObjectNodeVariable.setSubScopeId(variableAggregationInfo.getAggregationScopeId());
             aggregatedObjectNodeVariable.setValue(aggregatedVariables.get(aggregatedVariableName));
             variableService.insertVariableInstance(aggregatedObjectNodeVariable);
         }
